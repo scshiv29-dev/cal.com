@@ -1,10 +1,11 @@
+import HCaptcha from "@hcaptcha/react-hcaptcha";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 import dynamic from "next/dynamic";
 import Head from "next/head";
 import { useRouter } from "next/router";
-import { useEffect, useMemo, useReducer, useState } from "react";
+import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { useForm, useFormContext } from "react-hook-form";
 import { v4 as uuidv4 } from "uuid";
 import { z } from "zod";
@@ -72,7 +73,9 @@ const useBrandColors = ({ brandColor, darkBrandColor }: { brandColor?: string; d
   });
   useCalcomTheme(brandTheme);
 };
-
+interface divEL {
+  current: HTMLDivElement | null;
+}
 type BookingPageProps = BookPageProps | TeamBookingPageProps | HashLinkPageProps;
 const BookingFields = ({
   fields,
@@ -230,6 +233,14 @@ const BookingPage = ({
     }),
     {}
   );
+  const [token, setToken] = useState(null);
+  const captchaRef: any = useRef(null);
+
+  const onLoad = () => {
+    // this reaches out to the hCaptcha JS API and runs the
+    // execute function on it. you can use other functions as
+    captchaRef.current.execute();
+  };
 
   const reserveSlot = () => {
     if (queryDuration) {
@@ -355,7 +366,7 @@ const BookingPage = ({
   useEffect(() => {
     // THis is to fix hydration error that comes because of different timezone on server and client
     setIsClientTimezoneAvailable(true);
-  }, []);
+  }, [token]);
 
   const loggedInIsOwner = eventType?.users[0]?.id === session?.user?.id;
 
@@ -642,14 +653,23 @@ const BookingPage = ({
               </div>
             )}
             <div className={classNames("p-6", showEventTypeDetails ? "sm:w-1/2" : "w-full")}>
-              <Form form={bookingForm} noValidate handleSubmit={bookEvent}>
+              <Form
+                form={bookingForm}
+                noValidate
+                handleSubmit={bookEvent}
+                className="flex flex-col space-y-2">
                 <BookingFields
                   isDynamicGroupBooking={isDynamicGroupBooking}
                   fields={eventType.bookingFields}
                   locations={locations}
                   rescheduleUid={rescheduleUid}
                 />
-
+                <HCaptcha
+                  sitekey="d460096d-093b-4c37-a887-d323f7eee378"
+                  onLoad={onLoad}
+                  onVerify={}
+                  ref={captchaRef}
+                />
                 <div
                   className={classNames(
                     "flex justify-end space-x-2 rtl:space-x-reverse",
@@ -662,12 +682,22 @@ const BookingPage = ({
                   <Button color="minimal" type="button" onClick={() => router.back()}>
                     {t("cancel")}
                   </Button>
-                  <Button
-                    type="submit"
-                    data-testid={rescheduleUid ? "confirm-reschedule-button" : "confirm-book-button"}
-                    loading={mutation.isLoading || recurringMutation.isLoading}>
-                    {rescheduleUid ? t("reschedule") : t("confirm")}
-                  </Button>
+                  {token ? (
+                    <Button
+                      type="submit"
+                      data-testid={rescheduleUid ? "confirm-reschedule-button" : "confirm-book-button"}
+                      loading={mutation.isLoading || recurringMutation.isLoading}>
+                      {rescheduleUid ? t("reschedule") : t("confirm")}
+                    </Button>
+                  ) : (
+                    <Button
+                      type="submit"
+                      disabled
+                      data-testid={rescheduleUid ? "confirm-reschedule-button" : "confirm-book-button"}
+                      loading={mutation.isLoading || recurringMutation.isLoading}>
+                      {rescheduleUid ? t("reschedule") : t("confirm")}
+                    </Button>
+                  )}
                 </div>
               </Form>
               {mutation.isError || recurringMutation.isError ? (
